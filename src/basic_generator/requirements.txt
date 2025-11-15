@@ -1,0 +1,4 @@
+yfinance
+upsonic
+pydantic
+dotenv
