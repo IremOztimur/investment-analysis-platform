@@ -85,68 +85,6 @@ def reset_reports_directory() -> None:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def fetch_stock_data(ticker: str, period: str = "6mo") -> Dict[str, object]:
-    symbol = ticker.upper()
-    ticker_obj = yf.Ticker(symbol)
-    history = ticker_obj.history(period=period)
-
-    if history.empty:
-        raise ValueError(f"No price history found for {symbol}")
-
-    info = getattr(ticker_obj, "info", {}) or {}
-
-    return {
-        "ticker": symbol,
-        "company_name": info.get("shortName", symbol),
-        "sector": info.get("sector", "N/A"),
-        "current_price": float(history["Close"].iloc[-1]),
-        "average_price": float(history["Close"].mean()),
-        "volatility": float(history["Close"].std()),
-        "high_6m": float(history["High"].max()),
-        "low_6m": float(history["Low"].min()),
-        "data_points": int(len(history)),
-    }
-
-
-
-def build_snapshot_markdown(snapshots: List[Dict[str, object]]) -> str:
-    blocks = []
-    for entry in snapshots:
-        blocks.append(
-            dedent(
-                f"""
-                ### {entry['company_name']} ({entry['ticker']})
-                - Sector: {entry['sector']}
-                - Current Price: ${entry['current_price']:.2f}
-                - 6-Month Average Price: ${entry['average_price']:.2f}
-                - 6-Month Volatility (σ): {entry['volatility']:.2f}
-                - 6-Month High: ${entry['high_6m']:.2f}
-                - 6-Month Low: ${entry['low_6m']:.2f}
-                - Observations: {entry['data_points']} trading days analyzed
-                """
-            ).strip()
-        )
-    return "\n\n".join(blocks)
-
-
-def build_snapshot_text(snapshots: List[Dict[str, object]]) -> str:
-    lines = []
-    for entry in snapshots:
-        lines.append(
-            dedent(
-                f"""
-                Company: {entry['company_name']} ({entry['ticker']})
-                Sector: {entry['sector']}
-                Current Price: ${entry['current_price']:.2f}
-                6-Month Average: ${entry['average_price']:.2f}
-                Volatility (σ): {entry['volatility']:.2f}
-                6-Month High/Low: ${entry['high_6m']:.2f} / ${entry['low_6m']:.2f}
-                Sample Size: {entry['data_points']} trading days
-                """
-            ).strip()
-        )
-    return "\n\n".join(lines)
-
 
 # --- Presentation helpers ---
 def render_stock_analysis_report(result: StockAnalysisResult) -> str:
