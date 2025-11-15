@@ -66,7 +66,7 @@ def _normalize_text_block(text: str) -> str:
     if paragraph:
         normalized.append(" ".join(paragraph).strip())
 
-    # Reduce consecutive blank lines to a single blank line.
+    # Clean up the text
     cleaned: List[str] = []
     blank_pending = False
     for entry in normalized:
@@ -80,36 +80,20 @@ def _normalize_text_block(text: str) -> str:
 
     joined = "\n".join(cleaned).strip()
 
-    # --- NEW FIX 1: Fix "stutter" duplications ---
-    # This regex finds patterns like "(A) (A)(B)" and replaces them with "(A)(B)".
-    # This is the core fix for the "...withnetincomeof 416.16B,withnetincomeof112.01B" problem.
-    # It looks for (Group 1: word chars) + (space) + (Group 1 again) + (Group 2: word chars)
-    # and replaces it with (Group 1)(Group 2).
     joined = re.sub(r'([\w.,$%€£]+)\s+\1([\w.,$%€£]+)', r'\1\2', joined)
 
-    # --- NEW FIX 2: Add missing spaces (CamelCase/number splitting) ---
-    # This fixes run-on text like "withnetincomeof112.01B"
-    # It adds a space between a letter and a number (e.g., "of112" -> "of 112")
     joined = re.sub(r"([A-Za-z])(\d)", r"\1 \2", joined)
-    # It adds a space between a number and a letter (e.g., "112.01B" -> "112.01 B")
     joined = re.sub(r"(\d)([A-Za-z])", r"\1 \2", joined)
-    # --- END NEW FIXES ---
 
-    # Remove spaces inserted between numbers and units/letters (e.g., "130.5 B" -> "130.5B").
-    # This runs *after* our fix, so "112.01 B" becomes "112.01B" (if B is a unit)
     joined = re.sub(r"(?<=\d)\s+(?=[A-Za-z$%])", "", joined)
     joined = re.sub(r"(?<=[$€£])\s+(?=\d)", "", joined)
 
-    # Collapse sequences of single-letter tokens back into words.
     def _squash(match: re.Match[str]) -> str:
         return match.group(0).replace(" ", "")
 
     joined = re.sub(r"\b(?:[a-z]\s+){2,}[a-z]\b", _squash, joined)
     joined = re.sub(r"\b(?:[A-Z]\s+){2,}[A-Z]\b", _squash, joined)
-
-    # Remove stray spaces before punctuation and ensure single spaces after commas/periods.
     joined = re.sub(r"\s+([,.;:%])", r"\1", joined)
-    # This will correctly add a space after the comma: "416.16B,withnetincomeof" -> "416.16B, withnetincomeof"
     joined = re.sub(r"([,.;:%])(?!\s)", r"\1 ", joined)
     joined = re.sub(r"\s{2,}", " ", joined)
 
