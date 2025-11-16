@@ -25,23 +25,55 @@ def _call_api(symbols: List[str], write_reports: bool) -> dict:
     return response.json()
 
 
+_BULLET_CHARS = ("•", "◦", "▪", "‣", "⁃", "∙", "●", "○")
+_STANDARD_LIST_PREFIXES = ("- ", "* ", "+ ")
+_BULLET_REGEX = "[" + "".join(_BULLET_CHARS) + "]"
+_INLINE_BULLET_PATTERN = re.compile(
+    rf"(?<!\n)(?<!^)\s*({_BULLET_REGEX})\s+", flags=re.MULTILINE
+)
+
+
+def _normalize_bullet_line(line: str) -> str:
+    stripped = line.lstrip()
+    for bullet in _BULLET_CHARS:
+        if stripped.startswith(bullet):
+            remainder = stripped[len(bullet) :]
+            if remainder and not remainder[0].isspace():
+                continue
+            indent = len(line) - len(stripped)
+            return " " * indent + "- " + remainder.lstrip()
+    return line
+
+
+def _separate_inline_bullets(text: str) -> str:
+    return _INLINE_BULLET_PATTERN.sub(
+        lambda match: f"\n{match.group(1)} ",
+        text,
+    )
+
+
 def _is_list_item(line: str) -> bool:
     stripped = line.lstrip()
+    if stripped.startswith(_STANDARD_LIST_PREFIXES):
+        return True
+    if stripped and stripped[0] in _BULLET_CHARS:
+        return True
     return bool(
-        stripped.startswith(("- ", "* ", "+ "))
-        or re.match(r"^\d+\.\s", stripped)
+        re.match(r"^\d+\.\s", stripped)
         or stripped.startswith("#")
     )
 
 
 def _clean_line(line: str) -> str:
+    line = _normalize_bullet_line(line)
     line = line.strip()
     line = re.sub(r"(?<=\d)\s+(?=[A-Za-z$€£%])", "", line)
     line = re.sub(r"([$€£])\s+(?=\d)", r"\1", line)
     line = re.sub(r"(\d)\s+(?=\d)", r"\1", line)
     line = re.sub(r"(\d)\.\s+(\d)", r"\1.\2", line)
     line = re.sub(r"\s+([,.;:%])", r"\1", line)
-    line = re.sub(r"([,.;:%])(?!\s|$)", r"\1 ", line)
+    line = re.sub(r"(?<=[,.;:%])\s+(\*\*|__)", r"\1", line)
+    line = re.sub(r"([,.;:%])(?!\s|$|[*_])", r"\1 ", line)
     line = re.sub(r"\s{2,}", " ", line)
     return line.strip()
 
@@ -54,10 +86,12 @@ def _format_text_block(text: str) -> str:
 
     text = fix_text(text, normalization="NFKC")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = _separate_inline_bullets(text)
 
     blocks: List[str] = []
     for raw_block in re.split(r"\n{2,}", text):
-        lines = [ln for ln in raw_block.split("\n") if ln.strip()]
+        raw_lines = [ln for ln in raw_block.split("\n") if ln.strip()]
+        lines = [_normalize_bullet_line(ln) for ln in raw_lines]
         if not lines:
             continue
 

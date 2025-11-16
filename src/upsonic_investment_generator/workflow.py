@@ -10,7 +10,6 @@ The workflow combines three Upsonic agents to:
 from __future__ import annotations
 
 import datetime as dt
-import re
 from pathlib import Path
 from textwrap import dedent
 from typing import Iterable, List, Optional, Sequence
@@ -33,105 +32,23 @@ load_dotenv()  # Load environment variables for API keys if available.
 DEFAULT_REPORT_DIR = Path("reports/investment").absolute()
 
 
-def _normalize_text_block(text: str) -> str:
-    """Collapse awkward line breaks while preserving paragraphs and bullets."""
-
-    if not text:
-        return ""
-
-    lines = text.splitlines()
-    normalized: List[str] = []
-    paragraph: List[str] = []
-
-    for raw_line in lines:
-        line = raw_line.rstrip()
-
-        if not line.strip():
-            if paragraph:
-                normalized.append(" ".join(paragraph).strip())
-                paragraph = []
-            if normalized and normalized[-1] != "":
-                normalized.append("")
-            continue
-
-        bullet_prefixes = ("- ", "* ", "+ ", "1. ", "2. ", "3. ", "4. ", "5. ")
-        if line.lstrip().startswith(bullet_prefixes):
-            if paragraph:
-                normalized.append(" ".join(paragraph).strip())
-                paragraph = []
-            normalized.append(line.strip())
-        else:
-            paragraph.append(line.strip())
-
-    if paragraph:
-        normalized.append(" ".join(paragraph).strip())
-
-    # Clean up the text
-    cleaned: List[str] = []
-    blank_pending = False
-    for entry in normalized:
-        if entry == "":
-            if not blank_pending and cleaned:
-                cleaned.append("")
-            blank_pending = True
-        else:
-            cleaned.append(entry)
-            blank_pending = False
-
-    joined = "\n".join(cleaned).strip()
-
-    joined = re.sub(r'([\w.,$%€£]+)\s+\1([\w.,$%€£]+)', r'\1\2', joined)
-
-    joined = re.sub(r"([A-Za-z])(\d)", r"\1 \2", joined)
-    joined = re.sub(r"(\d)([A-Za-z])", r"\1 \2", joined)
-
-    joined = re.sub(r"(?<=\d)\s+(?=[A-Za-z$%])", "", joined)
-    joined = re.sub(r"(?<=[$€£])\s+(?=\d)", "", joined)
-
-    def _squash(match: re.Match[str]) -> str:
-        return match.group(0).replace(" ", "")
-
-    joined = re.sub(r"\b(?:[a-z]\s+){2,}[a-z]\b", _squash, joined)
-    joined = re.sub(r"\b(?:[A-Z]\s+){2,}[A-Z]\b", _squash, joined)
-    joined = re.sub(r"\s+([,.;:%])", r"\1", joined)
-    joined = re.sub(r"([,.;:%])(?!\s)", r"\1 ", joined)
-    joined = re.sub(r"\s{2,}", " ", joined)
-
-    return joined.strip()
-
 def _clean_stock_analysis(result: StockAnalysisResult) -> StockAnalysisResult:
-    cleaned_companies: List[CompanyInsight] = []
-
-    for company in result.companies:
-        print(
-            "[DEBUG] Raw financial_analysis for "
-            f"{company.company_name} ({company.symbol}):\n"
-            f"{company.financial_analysis}\n"
+    cleaned_companies = [
+        company.model_copy(
+            update={
+                "market_research": company.market_research.strip(),
+                "financial_analysis": company.financial_analysis.strip(),
+                "risk_assessment": company.risk_assessment.strip(),
+            }
         )
-
-        normalized_financials = _normalize_text_block(company.financial_analysis)
-
-        print(
-            "[DEBUG] Normalized financial_analysis for "
-            f"{company.company_name} ({company.symbol}):\n"
-            f"{normalized_financials}\n"
-        )
-
-        cleaned_companies.append(
-            company.model_copy(
-                update={
-                    "market_research": _normalize_text_block(company.market_research),
-                    "financial_analysis": normalized_financials,
-                    "risk_assessment": _normalize_text_block(company.risk_assessment),
-                }
-            )
-        )
+        for company in result.companies
+    ]
 
     return result.model_copy(
         update={
-            "overview": _normalize_text_block(result.overview),
+            "overview": result.overview.strip(),
             "companies": cleaned_companies,
-            "key_recommendations": _normalize_text_block(result.key_recommendations),
+            "key_recommendations": result.key_recommendations.strip(),
         }
     )
 
@@ -139,10 +56,10 @@ def _clean_stock_analysis(result: StockAnalysisResult) -> StockAnalysisResult:
 def _clean_investment_ranking(ranking: InvestmentRanking) -> InvestmentRanking:
     return ranking.model_copy(
         update={
-            "ranked_companies": _normalize_text_block(ranking.ranked_companies),
-            "investment_rationale": _normalize_text_block(ranking.investment_rationale),
-            "risk_evaluation": _normalize_text_block(ranking.risk_evaluation),
-            "growth_potential": _normalize_text_block(ranking.growth_potential),
+            "ranked_companies": ranking.ranked_companies.strip(),
+            "investment_rationale": ranking.investment_rationale.strip(),
+            "risk_evaluation": ranking.risk_evaluation.strip(),
+            "growth_potential": ranking.growth_potential.strip(),
         }
     )
 
@@ -150,10 +67,10 @@ def _clean_investment_ranking(ranking: InvestmentRanking) -> InvestmentRanking:
 def _clean_portfolio_allocation(portfolio: PortfolioAllocation) -> PortfolioAllocation:
     return portfolio.model_copy(
         update={
-            "allocation_strategy": _normalize_text_block(portfolio.allocation_strategy),
-            "investment_thesis": _normalize_text_block(portfolio.investment_thesis),
-            "risk_management": _normalize_text_block(portfolio.risk_management),
-            "final_recommendations": _normalize_text_block(portfolio.final_recommendations),
+            "allocation_strategy": portfolio.allocation_strategy.strip(),
+            "investment_thesis": portfolio.investment_thesis.strip(),
+            "risk_management": portfolio.risk_management.strip(),
+            "final_recommendations": portfolio.final_recommendations.strip(),
         }
     )
 
